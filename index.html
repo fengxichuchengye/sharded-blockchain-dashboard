@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sharded Blockchain Dashboard</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="background-grid"></div>
+    <main class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Shard Ledger Observatory</p>
+          <h1>分片区块链监控平台</h1>
+        </div>
+      </header>
+
+      <section class="stats-grid" id="stats-grid">
+        <article class="stat-card">
+          <span>区块链总体大小</span>
+          <strong id="stat-size">--</strong>
+        </article>
+        <article class="stat-card">
+          <span>总交易数</span>
+          <strong id="stat-tx">--</strong>
+        </article>
+        <article class="stat-card">
+          <span>创世区块时间</span>
+          <strong id="stat-genesis">--</strong>
+        </article>
+        <article class="stat-card">
+          <span>用户数量</span>
+          <strong id="stat-users">--</strong>
+        </article>
+      </section>
+
+      <section class="section-head">
+        <div>
+          <p class="eyebrow">Shard Chains</p>
+          <h2>分片区块链结构</h2>
+        </div>
+        <div class="legend">
+          <span><i class="legend-chip latest"></i> 最新区块</span>
+          <span><i class="legend-chip regular"></i> 历史区块</span>
+        </div>
+      </section>
+
+      <section id="shard-list" class="shard-list"></section>
+    </main>
+
+    <template id="block-template">
+      <article class="block-card">
+        <strong class="block-id"></strong>
+        <span class="block-hash"></span>
+        <div class="block-info">
+          <span class="block-tx"></span>
+          <span class="block-time"></span>
+        </div>
+      </article>
+    </template>
+
+    <script src="./script.js?v=4"></script>
+  </body>
+</html>
