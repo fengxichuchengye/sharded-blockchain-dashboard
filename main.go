@@ -111,7 +111,21 @@ func main() {
 		}
 		writeJSON(w, map[string]any{"shards": snapshot.Shards})
 	})
-	mux.Handle("/", http.FileServer(http.Dir(".")))
+	serveIndex := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		http.ServeFile(w, r, "index.html")
+	}
+	mux.HandleFunc("/index.html", serveIndex)
+	staticFS := http.FileServer(http.Dir("."))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			serveIndex(w, r)
+			return
+		}
+		staticFS.ServeHTTP(w, r)
+	})
 
 	addr := serverAddr()
 	log.Printf("server listening on http://localhost%s", addr)
