@@ -1,6 +1,5 @@
 const statSize = document.querySelector("#stat-size");
 const statTx = document.querySelector("#stat-tx");
-const statGenesis = document.querySelector("#stat-genesis");
 const statUsers = document.querySelector("#stat-users");
 const shardList = document.querySelector("#shard-list");
 const blockTemplate = document.querySelector("#block-template");
@@ -112,7 +111,6 @@ function shortHash(hash) {
 function renderStat(stat) {
   statSize.textContent = stat.blockchainSizeText || "--";
   statTx.textContent = formatNumber(stat.totalTransactions);
-  statGenesis.textContent = stat.genesisBlockTime || "--";
   statUsers.textContent = formatNumber(stat.userCount);
 }
 

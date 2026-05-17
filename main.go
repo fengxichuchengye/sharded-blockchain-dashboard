@@ -1,6 +1,8 @@
 package main
 
 import (
+	"block/core"
+	"block/query"
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
@@ -17,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -109,15 +112,42 @@ type Snapshot struct {
 	Shards []ShardView `json:"shards"`
 }
 
+type indexedBlock struct {
+	View   BlockView
+	Height uint64
+}
+
+type shardStore struct {
+	ID           int
+	Path         string
+	Blocks       []BlockView
+	LatestHeight uint64
+	LatestHash   string
+	ByHash       map[string]indexedBlock
+}
+
+type chainStore struct {
+	root      string
+	sizeBytes int64
+	userCount int
+	shards    map[int]*shardStore
+	mu        sync.RWMutex
+}
+
 func main() {
 	gob.RegisterName("core.Transaction", &liteTx{})
 	gob.RegisterName("[]*core.Transaction", []*liteTx{})
 	gob.RegisterName("core.BlockHeader", liteBlockHeader{})
 	gob.RegisterName("core.Block", liteBlock{})
 
+	store, err := newChainStore(recordDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/stat", func(w http.ResponseWriter, r *http.Request) {
-		snapshot, err := loadSnapshot(recordDir)
+		snapshot, err := store.Snapshot()
 		if err != nil {
 			writeError(w, err)
 			return
@@ -125,7 +155,7 @@ func main() {
 		writeJSON(w, snapshot.Stat)
 	})
 	mux.HandleFunc("/api/shards", func(w http.ResponseWriter, r *http.Request) {
-		snapshot, err := loadSnapshot(recordDir)
+		snapshot, err := store.Snapshot()
 		if err != nil {
 			writeError(w, err)
 			return
@@ -133,7 +163,7 @@ func main() {
 		writeJSON(w, map[string]any{"shards": snapshot.Shards})
 	})
 	mux.HandleFunc("/api/blocks", func(w http.ResponseWriter, r *http.Request) {
-		snapshot, err := loadSnapshot(recordDir)
+		snapshot, err := store.Snapshot()
 		if err != nil {
 			writeError(w, err)
 			return
@@ -151,7 +181,7 @@ func main() {
 			http.Error(w, `{"error":"missing hash"}`, http.StatusBadRequest)
 			return
 		}
-		transactions, err := loadBlockTransactions(recordDir, shardID, hash)
+		transactions, err := store.QueryBlockTransactions(shardID, hash)
 		if err != nil {
 			writeError(w, err)
 			return
@@ -183,6 +213,30 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
+func newChainStore(root string) (*chainStore, error) {
+	sizeBytes, err := dirSize(root)
+	if err != nil {
+		return nil, err
+	}
+
+	userCount, err := loadUserCount(filepath.Join(root, "ldb"))
+	if err != nil {
+		return nil, err
+	}
+
+	shards, err := loadShardStores(root)
+	if err != nil {
+		return nil, err
+	}
+
+	return &chainStore{
+		root:      root,
+		sizeBytes: sizeBytes,
+		userCount: userCount,
+		shards:    shards,
+	}, nil
+}
+
 func serverAddr() string {
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {
@@ -194,22 +248,11 @@ func serverAddr() string {
 	return port
 }
 
-func loadSnapshot(root string) (Snapshot, error) {
-	sizeBytes, err := dirSize(root)
-	if err != nil {
-		return Snapshot{}, err
-	}
+func (s *chainStore) Snapshot() (Snapshot, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	shards, err := loadShardBlocks(root)
-	if err != nil {
-		return Snapshot{}, err
-	}
-
-	userCount, err := loadUserCount(filepath.Join(root, "ldb"))
-	if err != nil {
-		return Snapshot{}, err
-	}
-
+	shards := s.QueryShards()
 	totalTx := 0
 	totalBlocks := 0
 	var genesis time.Time
@@ -229,11 +272,11 @@ func loadSnapshot(root string) (Snapshot, error) {
 
 	return Snapshot{
 		Stat: StatView{
-			BlockchainSizeBytes: sizeBytes,
-			BlockchainSizeText:  humanSize(sizeBytes),
+			BlockchainSizeBytes: s.sizeBytes,
+			BlockchainSizeText:  humanSize(s.sizeBytes),
 			TotalTransactions:   totalTx,
 			GenesisBlockTime:    formatTime(genesis),
-			UserCount:           userCount,
+			UserCount:           s.userCount,
 			ShardCount:          len(shards),
 			BlockCount:          totalBlocks,
 			LastUpdated:         time.Now().UTC().Format(time.RFC3339),
@@ -242,23 +285,17 @@ func loadSnapshot(root string) (Snapshot, error) {
 	}, nil
 }
 
-func loadShardBlocks(root string) ([]ShardView, error) {
+func loadShardStores(root string) (map[int]*shardStore, error) {
 	chosen, err := chooseShardDatabases(root)
 	if err != nil {
 		return nil, err
 	}
 
-	shardIDs := make([]int, 0, len(chosen))
-	for shardID := range chosen {
-		shardIDs = append(shardIDs, shardID)
-	}
-	sort.Ints(shardIDs)
-
-	shards := make([]ShardView, 0, len(shardIDs))
-	for _, shardID := range shardIDs {
-		blocks, err := parseShardDatabase(chosen[shardID])
+	shards := make(map[int]*shardStore, len(chosen))
+	for shardID, path := range chosen {
+		blocks, index, err := loadShardBlocksFromQuery(shardID)
 		if err != nil {
-			return nil, fmt.Errorf("parse shard %d: %w", shardID, err)
+			return nil, fmt.Errorf("query shard %d: %w", shardID, err)
 		}
 		latestHeight := uint64(0)
 		latestHash := ""
@@ -271,17 +308,109 @@ func loadShardBlocks(root string) ([]ShardView, error) {
 		for i := range blocks {
 			blocks[i].IsLatest = blocks[i].Height == latestHeight && latestHash == blocks[i].Hash
 		}
+		shards[shardID] = &shardStore{
+			ID:           shardID,
+			Path:         path,
+			LatestHeight: latestHeight,
+			LatestHash:   latestHash,
+			Blocks:       blocks,
+			ByHash:       index,
+		}
+	}
+	return shards, nil
+}
+
+func loadShardBlocksFromQuery(shardID int) ([]BlockView, map[string]indexedBlock, error) {
+	blocks := query.QueryBlocks(uint64(shardID), 0)
+	if len(blocks) == 0 {
+		return []BlockView{}, map[string]indexedBlock{}, nil
+	}
+
+	views := make([]BlockView, 0, len(blocks))
+	index := make(map[string]indexedBlock, len(blocks))
+	for _, block := range blocks {
+		if block == nil || block.Header == nil {
+			continue
+		}
+
+		hash := hex.EncodeToString(block.Hash)
+		view := BlockView{
+			Height:       block.Header.Number,
+			TxCount:      len(block.Body),
+			Hash:         hash,
+			HashShort:    shortHash(hash),
+			ParentHash:   hex.EncodeToString(block.Header.ParentBlockHash),
+			Timestamp:    formatTime(block.Header.Time),
+			TimestampRaw: block.Header.Time.UnixNano(),
+		}
+		views = append(views, view)
+		index[strings.ToLower(hash)] = indexedBlock{
+			View:   view,
+			Height: block.Header.Number,
+		}
+	}
+
+	sort.Slice(views, func(i, j int) bool {
+		if views[i].Height == views[j].Height {
+			return views[i].Hash < views[j].Hash
+		}
+		return views[i].Height < views[j].Height
+	})
+	return views, index, nil
+}
+
+func (s *chainStore) QueryShards() []ShardView {
+	shardIDs := make([]int, 0, len(s.shards))
+	for shardID := range s.shards {
+		shardIDs = append(shardIDs, shardID)
+	}
+	sort.Ints(shardIDs)
+
+	shards := make([]ShardView, 0, len(shardIDs))
+	for _, shardID := range shardIDs {
+		store := s.shards[shardID]
+		blocks := append([]BlockView(nil), store.Blocks...)
 		shards = append(shards, ShardView{
 			ID:           shardID,
 			Label:        fmt.Sprintf("Shard %d", shardID),
 			BlockCount:   len(blocks),
-			LatestHeight: latestHeight,
-			LatestHash:   latestHash,
+			LatestHeight: store.LatestHeight,
+			LatestHash:   store.LatestHash,
 			Blocks:       blocks,
 		})
 	}
+	return shards
+}
 
-	return shards, nil
+func (s *chainStore) QueryBlocks(shardID int) ([]BlockView, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	store, ok := s.shards[shardID]
+	if !ok {
+		return nil, false
+	}
+	return append([]BlockView(nil), store.Blocks...), true
+}
+
+func (s *chainStore) QueryNewestBlock(shardID int) (BlockView, bool) {
+	blocks, ok := s.QueryBlocks(shardID)
+	if !ok || len(blocks) == 0 {
+		return BlockView{}, false
+	}
+	return blocks[len(blocks)-1], true
+}
+
+func (s *chainStore) QueryBlock(shardID int, hash string) (indexedBlock, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	store, ok := s.shards[shardID]
+	if !ok {
+		return indexedBlock{}, false
+	}
+	block, ok := store.ByHash[strings.ToLower(strings.TrimSpace(hash))]
+	return block, ok
 }
 
 func chooseShardDatabases(root string) (map[int]string, error) {
@@ -329,14 +458,14 @@ func parseNodeFromPath(path string) int {
 	return nodeID
 }
 
-func parseShardDatabase(path string) ([]BlockView, error) {
+func parseShardDatabase(path string) ([]BlockView, map[string]indexedBlock, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	needle := []byte("Block\x01")
-	seen := make(map[string]BlockView)
+	seen := make(map[string]indexedBlock)
 	for idx := 0; idx < len(data); {
 		pos := bytes.Index(data[idx:], needle)
 		if pos < 0 {
@@ -366,19 +495,22 @@ func parseShardDatabase(path string) ([]BlockView, error) {
 			if ts.IsZero() {
 				ts = extractTimestamp(record)
 			}
-			blockView := BlockView{
-				Height:       block.Header.Number,
-				TxCount:      len(block.Body),
-				Hash:         hash,
-				HashShort:    shortHash(hash),
-				ParentHash:   hex.EncodeToString(block.Header.ParentBlockHash),
-				Timestamp:    formatTime(ts),
-				TimestampRaw: ts.UnixNano(),
+			blockIndex := indexedBlock{
+				View: BlockView{
+					Height:       block.Header.Number,
+					TxCount:      len(block.Body),
+					Hash:         hash,
+					HashShort:    shortHash(hash),
+					ParentHash:   hex.EncodeToString(block.Header.ParentBlockHash),
+					Timestamp:    formatTime(ts),
+					TimestampRaw: ts.UnixNano(),
+				},
+				Height: block.Header.Number,
 			}
 
 			existing, exists := seen[hash]
-			if !exists || blockView.TxCount > existing.TxCount || blockView.Height > existing.Height {
-				seen[hash] = blockView
+			if !exists || blockIndex.View.TxCount > existing.View.TxCount || blockIndex.View.Height > existing.View.Height {
+				seen[hash] = blockIndex
 			}
 			idx = start + max(consumed, 1)
 			matched = true
@@ -391,7 +523,7 @@ func parseShardDatabase(path string) ([]BlockView, error) {
 
 	blocks := make([]BlockView, 0, len(seen))
 	for _, block := range seen {
-		blocks = append(blocks, block)
+		blocks = append(blocks, block.View)
 	}
 	sort.Slice(blocks, func(i, j int) bool {
 		if blocks[i].Height == blocks[j].Height {
@@ -399,66 +531,17 @@ func parseShardDatabase(path string) ([]BlockView, error) {
 		}
 		return blocks[i].Height < blocks[j].Height
 	})
-	return blocks, nil
+	return blocks, seen, nil
 }
 
-func loadBlockTransactions(root string, shardID int, hash string) ([]TransactionView, error) {
-	chosen, err := chooseShardDatabases(root)
-	if err != nil {
-		return nil, err
-	}
-
-	path, ok := chosen[shardID]
+func (s *chainStore) QueryBlockTransactions(shardID int, hash string) ([]TransactionView, error) {
+	block, ok := s.QueryBlock(shardID, hash)
 	if !ok {
 		return []TransactionView{}, nil
 	}
 
-	return parseBlockTransactions(path, hash)
-}
-
-func parseBlockTransactions(path, hash string) ([]TransactionView, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	targetHash := strings.ToLower(strings.TrimSpace(hash))
-	needle := []byte("Block\x01")
-	for idx := 0; idx < len(data); {
-		pos := bytes.Index(data[idx:], needle)
-		if pos < 0 {
-			break
-		}
-		pos += idx
-		matched := false
-		for back := 40; back >= 0; back-- {
-			start := pos - back
-			if start < 0 {
-				continue
-			}
-			reader := bytes.NewReader(data[start:])
-			dec := gob.NewDecoder(reader)
-			var block liteBlock
-			if err := dec.Decode(&block); err != nil || len(block.Hash) == 0 {
-				continue
-			}
-			consumed := len(data[start:]) - reader.Len()
-			if consumed <= 0 || start+consumed > len(data) {
-				continue
-			}
-			if hex.EncodeToString(block.Hash) == targetHash {
-				return buildTransactionViews(block.Body, 100), nil
-			}
-			idx = start + max(consumed, 1)
-			matched = true
-			break
-		}
-		if !matched {
-			idx = pos + len(needle)
-		}
-	}
-
-	return []TransactionView{}, nil
+	txs := query.QueryBlockTxs(uint64(shardID), 0, block.Height)
+	return buildTransactionViewsFromCore(txs, 100), nil
 }
 
 func buildTransactionViews(body []*liteTx, limit int) []TransactionView {
@@ -485,6 +568,38 @@ func buildTransactionViews(body []*liteTx, limit int) []TransactionView {
 			TxHash:         encodeHash(tx.TxHash, tx.RawTxHash),
 			OriginalSender: strings.TrimSpace(tx.OriginalSender),
 			FinalRecipient: strings.TrimSpace(tx.FinalRecipient),
+			Relayed:        tx.Relayed,
+			HasBroker:      tx.HasBroker,
+			SenderIsBroker: tx.SenderIsBroker,
+		})
+	}
+	return transactions
+}
+
+func buildTransactionViewsFromCore(body []*core.Transaction, limit int) []TransactionView {
+	if len(body) == 0 {
+		return []TransactionView{}
+	}
+	if limit <= 0 || limit > len(body) {
+		limit = len(body)
+	}
+
+	transactions := make([]TransactionView, 0, limit)
+	for i := 0; i < limit; i++ {
+		tx := body[i]
+		if tx == nil {
+			transactions = append(transactions, TransactionView{Index: i + 1})
+			continue
+		}
+		transactions = append(transactions, TransactionView{
+			Index:          i + 1,
+			Sender:         strings.TrimSpace(string(tx.Sender)),
+			Recipient:      strings.TrimSpace(string(tx.Recipient)),
+			Value:          bigIntText(tx.Value),
+			Nonce:          tx.Nonce,
+			TxHash:         encodeHash(tx.TxHash, tx.RawTxHash),
+			OriginalSender: strings.TrimSpace(string(tx.OriginalSender)),
+			FinalRecipient: strings.TrimSpace(string(tx.FinalRecipient)),
 			Relayed:        tx.Relayed,
 			HasBroker:      tx.HasBroker,
 			SenderIsBroker: tx.SenderIsBroker,
