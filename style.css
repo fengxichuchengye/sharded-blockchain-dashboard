@@ -28,6 +28,10 @@ body {
   min-height: 100vh;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 .background-grid {
   position: fixed;
   inset: 0;
@@ -225,6 +229,7 @@ body {
   flex-direction: column;
   gap: 10px;
   text-align: center;
+  cursor: pointer;
 }
 
 .block-card::before {
@@ -293,6 +298,170 @@ body {
   background: rgba(7, 17, 31, 0.45);
 }
 
+.hidden {
+  display: none !important;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(2, 8, 18, 0.76);
+  backdrop-filter: blur(10px);
+}
+
+.block-modal {
+  position: relative;
+  width: min(1180px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  border-radius: 28px;
+  padding: 28px;
+  background: linear-gradient(180deg, rgba(10, 20, 36, 0.98), rgba(8, 17, 31, 0.98));
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+}
+
+.modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(12, 24, 43, 0.92);
+  color: var(--text);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding-right: 56px;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 36px);
+}
+
+.modal-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.modal-badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(105, 229, 255, 0.22);
+  background: rgba(105, 229, 255, 0.1);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.modal-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0 26px;
+}
+
+.meta-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(9, 19, 34, 0.84);
+  border: 1px solid rgba(125, 196, 255, 0.16);
+}
+
+.meta-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.meta-card strong {
+  display: block;
+  font-size: 14px;
+  font-family: "Consolas", "Cascadia Code", "Fira Code", monospace;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.tx-section {
+  border-top: 1px solid rgba(125, 196, 255, 0.12);
+  padding-top: 20px;
+}
+
+.tx-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.tx-section-head h3 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.tx-section-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tx-table-wrap {
+  overflow: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(125, 196, 255, 0.14);
+  background: rgba(6, 15, 27, 0.82);
+}
+
+.tx-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.tx-table th,
+.tx-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(125, 196, 255, 0.1);
+  text-align: left;
+  font-size: 13px;
+}
+
+.tx-table th {
+  position: sticky;
+  top: 0;
+  background: rgba(10, 20, 36, 0.98);
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.tx-table td {
+  max-width: 220px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.tx-table tbody tr:hover {
+  background: rgba(105, 229, 255, 0.06);
+}
+
 @media (max-width: 1024px) {
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -302,6 +471,10 @@ body {
   .section-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .modal-meta {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -318,5 +491,18 @@ body {
   .block-card {
     width: 140px;
     min-width: 140px;
+  }
+
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .block-modal {
+    padding: 20px 16px;
+    max-height: 92vh;
+  }
+
+  .tx-table {
+    min-width: 760px;
   }
 }

@@ -60,6 +60,50 @@
       </article>
     </template>
 
-    <script src="./script.js?v=4"></script>
+    <div id="modal-overlay" class="modal-overlay hidden" aria-hidden="true">
+      <section class="block-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button id="modal-close" class="modal-close" type="button" aria-label="Close details">
+          &times;
+        </button>
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Block Details</p>
+            <h2 id="modal-title">区块详情</h2>
+          </div>
+          <div id="modal-badges" class="modal-badges"></div>
+        </div>
+
+        <div id="modal-meta" class="modal-meta"></div>
+
+        <section class="tx-section">
+          <div class="tx-section-head">
+            <div>
+              <h3>区块内前 100 笔交易</h3>
+              <p>显示区块体中实际读取到的交易明细，没有交易时显示为空。</p>
+            </div>
+          </div>
+
+          <div id="tx-empty" class="empty-state hidden"></div>
+
+          <div id="tx-table-wrap" class="tx-table-wrap hidden">
+            <table class="tx-table">
+              <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>发送方</th>
+                  <th>接收方</th>
+                  <th>金额</th>
+                  <th>Nonce</th>
+                  <th>交易哈希</th>
+                </tr>
+              </thead>
+              <tbody id="tx-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <script src="./script.js?v=5"></script>
   </body>
 </html>

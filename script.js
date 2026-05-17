@@ -4,6 +4,23 @@ const statGenesis = document.querySelector("#stat-genesis");
 const statUsers = document.querySelector("#stat-users");
 const shardList = document.querySelector("#shard-list");
 const blockTemplate = document.querySelector("#block-template");
+const modalOverlay = document.querySelector("#modal-overlay");
+const modalClose = document.querySelector("#modal-close");
+const modalTitle = document.querySelector("#modal-title");
+const modalBadges = document.querySelector("#modal-badges");
+const modalMeta = document.querySelector("#modal-meta");
+const txEmpty = document.querySelector("#tx-empty");
+const txTableWrap = document.querySelector("#tx-table-wrap");
+const txTableBody = document.querySelector("#tx-table-body");
+
+const TEXT = {
+  loading: "正在加载交易信息...",
+  noTransactions: "该区块当前没有交易记录。",
+  loadFailed: "交易信息读取失败。",
+  latestBlock: "最新区块",
+  historyBlock: "历史区块",
+  transactionSuffix: "笔交易",
+};
 
 function generateHash() {
   return Array.from({ length: 64 }, () =>
@@ -86,11 +103,105 @@ function formatNumber(value) {
   return new Intl.NumberFormat("zh-CN").format(value ?? 0);
 }
 
+function shortHash(hash) {
+  if (!hash) return "--";
+  if (hash.length <= 18) return hash;
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
 function renderStat(stat) {
   statSize.textContent = stat.blockchainSizeText || "--";
   statTx.textContent = formatNumber(stat.totalTransactions);
   statGenesis.textContent = stat.genesisBlockTime || "--";
   statUsers.textContent = formatNumber(stat.userCount);
+}
+
+function closeModal() {
+  modalOverlay.classList.add("hidden");
+  modalOverlay.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+function showModal(shard, block) {
+  modalTitle.textContent = `${shard.label} - 区块 ${block.height ?? block.blockId ?? "--"}`;
+  modalBadges.innerHTML = `
+    <span class="modal-badge">${block.isLatest ? TEXT.latestBlock : TEXT.historyBlock}</span>
+    <span class="modal-badge">${formatNumber(block.txCount)} ${TEXT.transactionSuffix}</span>
+  `;
+
+  modalMeta.innerHTML = `
+    <article class="meta-card">
+      <span>区块高度</span>
+      <strong>#${formatNumber(block.height ?? 0)}</strong>
+    </article>
+    <article class="meta-card">
+      <span>区块哈希</span>
+      <strong title="${block.hash || ""}">${block.hash || "--"}</strong>
+    </article>
+    <article class="meta-card">
+      <span>父区块哈希</span>
+      <strong title="${block.parentHash || ""}">${block.parentHash || "--"}</strong>
+    </article>
+    <article class="meta-card">
+      <span>区块时间</span>
+      <strong>${block.timestamp || "Unavailable"}</strong>
+    </article>
+  `;
+
+  txEmpty.textContent = TEXT.loading;
+  txEmpty.classList.remove("hidden");
+  txTableWrap.classList.add("hidden");
+  txTableBody.innerHTML = "";
+
+  modalOverlay.classList.remove("hidden");
+  modalOverlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  loadTransactions(shard.id, block.hash);
+}
+
+async function loadTransactions(shardID, hash) {
+  try {
+    const response = await fetch(
+      `/api/block-transactions?shard=${encodeURIComponent(shardID)}&hash=${encodeURIComponent(hash)}`,
+      { cache: "no-store" }
+    );
+    if (!response.ok) throw new Error("API unavailable");
+    const data = await response.json();
+    renderTransactions(data.transactions || []);
+  } catch {
+    txEmpty.textContent = TEXT.loadFailed;
+    txEmpty.classList.remove("hidden");
+    txTableWrap.classList.add("hidden");
+    txTableBody.innerHTML = "";
+  }
+}
+
+function renderTransactions(transactions) {
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    txEmpty.textContent = TEXT.noTransactions;
+    txEmpty.classList.remove("hidden");
+    txTableWrap.classList.add("hidden");
+    txTableBody.innerHTML = "";
+    return;
+  }
+
+  txEmpty.classList.add("hidden");
+  txTableWrap.classList.remove("hidden");
+  txTableBody.innerHTML = transactions
+    .map(
+      (tx) => `
+        <tr>
+          <td>${formatNumber(tx.index)}</td>
+          <td title="${tx.sender || ""}">${tx.sender || ""}</td>
+          <td title="${tx.recipient || ""}">${tx.recipient || ""}</td>
+          <td>${tx.value || ""}</td>
+          <td>${formatNumber(tx.nonce)}</td>
+          <td title="${tx.txHash || ""}">${shortHash(tx.txHash)}</td>
+        </tr>
+      `
+    )
+    .join("");
 }
 
 function renderShards(shards) {
@@ -133,10 +244,20 @@ function renderShards(shards) {
 
       const node = blockTemplate.content.firstElementChild.cloneNode(true);
       node.classList.toggle("latest", Boolean(block.isLatest));
+      node.tabIndex = 0;
+      node.setAttribute("role", "button");
+      node.setAttribute("aria-label", `查看 ${shard.label} 区块 ${block.height ?? block.blockId} 详情`);
       node.querySelector(".block-id").textContent = `区块${block.blockId}`;
       node.querySelector(".block-hash").textContent = block.hashLast8 || block.hash.slice(-8) || "--";
       node.querySelector(".block-tx").textContent = `${formatNumber(block.txCount)} 笔交易`;
       node.querySelector(".block-time").textContent = block.timestamp || "Unavailable";
+      node.addEventListener("click", () => showModal(shard, block));
+      node.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          showModal(shard, block);
+        }
+      });
       row.appendChild(node);
     });
 
@@ -174,5 +295,18 @@ async function refresh() {
     renderShards(mock.shards.shards);
   }
 }
+
+modalClose.addEventListener("click", closeModal);
+modalOverlay.addEventListener("click", (event) => {
+  if (event.target === modalOverlay) {
+    closeModal();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !modalOverlay.classList.contains("hidden")) {
+    closeModal();
+  }
+});
 
 refresh();

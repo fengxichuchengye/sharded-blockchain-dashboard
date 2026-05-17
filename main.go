@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,13 +24,27 @@ const recordDir = "record"
 
 var accountAddrPattern = regexp.MustCompile(`[0-9a-f]{20,64}`)
 
-type liteTx struct{}
+type liteTx struct {
+	Sender         string
+	Recipient      string
+	Nonce          uint64
+	Signature      []byte
+	Value          *big.Int
+	TxHash         []byte
+	Relayed        bool
+	HasBroker      bool
+	SenderIsBroker bool
+	OriginalSender string
+	FinalRecipient string
+	RawTxHash      []byte
+}
 
 type liteBlockHeader struct {
 	ParentBlockHash []byte
 	StateRoot       []byte
 	TxRoot          []byte
 	Number          uint64
+	Time            time.Time
 	Miner           uint64
 }
 
@@ -75,6 +90,20 @@ type StatView struct {
 	LastUpdated         string `json:"lastUpdated"`
 }
 
+type TransactionView struct {
+	Index          int    `json:"index"`
+	Sender         string `json:"sender"`
+	Recipient      string `json:"recipient"`
+	Value          string `json:"value"`
+	Nonce          uint64 `json:"nonce"`
+	TxHash         string `json:"txHash"`
+	OriginalSender string `json:"originalSender"`
+	FinalRecipient string `json:"finalRecipient"`
+	Relayed        bool   `json:"relayed"`
+	HasBroker      bool   `json:"hasBroker"`
+	SenderIsBroker bool   `json:"senderIsBroker"`
+}
+
 type Snapshot struct {
 	Stat   StatView    `json:"stat"`
 	Shards []ShardView `json:"shards"`
@@ -110,6 +139,28 @@ func main() {
 			return
 		}
 		writeJSON(w, map[string]any{"shards": snapshot.Shards})
+	})
+	mux.HandleFunc("/api/block-transactions", func(w http.ResponseWriter, r *http.Request) {
+		shardID, err := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("shard")))
+		if err != nil {
+			http.Error(w, `{"error":"invalid shard"}`, http.StatusBadRequest)
+			return
+		}
+		hash := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("hash")))
+		if hash == "" {
+			http.Error(w, `{"error":"missing hash"}`, http.StatusBadRequest)
+			return
+		}
+		transactions, err := loadBlockTransactions(recordDir, shardID, hash)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		writeJSON(w, map[string]any{
+			"shard":        shardID,
+			"hash":         hash,
+			"transactions": transactions,
+		})
 	})
 	serveIndex := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
@@ -192,24 +243,9 @@ func loadSnapshot(root string) (Snapshot, error) {
 }
 
 func loadShardBlocks(root string) ([]ShardView, error) {
-	entries, err := os.ReadDir(root)
+	chosen, err := chooseShardDatabases(root)
 	if err != nil {
 		return nil, err
-	}
-
-	chosen := make(map[int]string)
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_database") {
-			continue
-		}
-		shardID, nodeID, ok := parseDatabaseName(entry.Name())
-		if !ok {
-			continue
-		}
-		current, exists := chosen[shardID]
-		if !exists || nodeID < parseNodeFromPath(current) {
-			chosen[shardID] = filepath.Join(root, entry.Name())
-		}
 	}
 
 	shardIDs := make([]int, 0, len(chosen))
@@ -246,6 +282,29 @@ func loadShardBlocks(root string) ([]ShardView, error) {
 	}
 
 	return shards, nil
+}
+
+func chooseShardDatabases(root string) (map[int]string, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+
+	chosen := make(map[int]string)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_database") {
+			continue
+		}
+		shardID, nodeID, ok := parseDatabaseName(entry.Name())
+		if !ok {
+			continue
+		}
+		current, exists := chosen[shardID]
+		if !exists || nodeID < parseNodeFromPath(current) {
+			chosen[shardID] = filepath.Join(root, entry.Name())
+		}
+	}
+	return chosen, nil
 }
 
 func parseDatabaseName(name string) (int, int, bool) {
@@ -303,7 +362,10 @@ func parseShardDatabase(path string) ([]BlockView, error) {
 
 			hash := hex.EncodeToString(block.Hash)
 			record := data[start : start+consumed]
-			ts := extractTimestamp(record)
+			ts := block.Header.Time
+			if ts.IsZero() {
+				ts = extractTimestamp(record)
+			}
 			blockView := BlockView{
 				Height:       block.Header.Number,
 				TxCount:      len(block.Body),
@@ -338,6 +400,114 @@ func parseShardDatabase(path string) ([]BlockView, error) {
 		return blocks[i].Height < blocks[j].Height
 	})
 	return blocks, nil
+}
+
+func loadBlockTransactions(root string, shardID int, hash string) ([]TransactionView, error) {
+	chosen, err := chooseShardDatabases(root)
+	if err != nil {
+		return nil, err
+	}
+
+	path, ok := chosen[shardID]
+	if !ok {
+		return []TransactionView{}, nil
+	}
+
+	return parseBlockTransactions(path, hash)
+}
+
+func parseBlockTransactions(path, hash string) ([]TransactionView, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	targetHash := strings.ToLower(strings.TrimSpace(hash))
+	needle := []byte("Block\x01")
+	for idx := 0; idx < len(data); {
+		pos := bytes.Index(data[idx:], needle)
+		if pos < 0 {
+			break
+		}
+		pos += idx
+		matched := false
+		for back := 40; back >= 0; back-- {
+			start := pos - back
+			if start < 0 {
+				continue
+			}
+			reader := bytes.NewReader(data[start:])
+			dec := gob.NewDecoder(reader)
+			var block liteBlock
+			if err := dec.Decode(&block); err != nil || len(block.Hash) == 0 {
+				continue
+			}
+			consumed := len(data[start:]) - reader.Len()
+			if consumed <= 0 || start+consumed > len(data) {
+				continue
+			}
+			if hex.EncodeToString(block.Hash) == targetHash {
+				return buildTransactionViews(block.Body, 100), nil
+			}
+			idx = start + max(consumed, 1)
+			matched = true
+			break
+		}
+		if !matched {
+			idx = pos + len(needle)
+		}
+	}
+
+	return []TransactionView{}, nil
+}
+
+func buildTransactionViews(body []*liteTx, limit int) []TransactionView {
+	if len(body) == 0 {
+		return []TransactionView{}
+	}
+	if limit <= 0 || limit > len(body) {
+		limit = len(body)
+	}
+
+	transactions := make([]TransactionView, 0, limit)
+	for i := 0; i < limit; i++ {
+		tx := body[i]
+		if tx == nil {
+			transactions = append(transactions, TransactionView{Index: i + 1})
+			continue
+		}
+		transactions = append(transactions, TransactionView{
+			Index:          i + 1,
+			Sender:         strings.TrimSpace(tx.Sender),
+			Recipient:      strings.TrimSpace(tx.Recipient),
+			Value:          bigIntText(tx.Value),
+			Nonce:          tx.Nonce,
+			TxHash:         encodeHash(tx.TxHash, tx.RawTxHash),
+			OriginalSender: strings.TrimSpace(tx.OriginalSender),
+			FinalRecipient: strings.TrimSpace(tx.FinalRecipient),
+			Relayed:        tx.Relayed,
+			HasBroker:      tx.HasBroker,
+			SenderIsBroker: tx.SenderIsBroker,
+		})
+	}
+	return transactions
+}
+
+func encodeHash(primary, fallback []byte) string {
+	if len(primary) > 0 {
+		return hex.EncodeToString(primary)
+	}
+	if len(fallback) > 0 {
+		return hex.EncodeToString(fallback)
+	}
+	return ""
+}
+
+func bigIntText(value *big.Int) string {
+	if value == nil {
+		return ""
+	}
+	return value.String()
 }
 
 func extractTimestamp(record []byte) time.Time {
