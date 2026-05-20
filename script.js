@@ -11,6 +11,16 @@ const modalMeta = document.querySelector("#modal-meta");
 const txEmpty = document.querySelector("#tx-empty");
 const txTableWrap = document.querySelector("#tx-table-wrap");
 const txTableBody = document.querySelector("#tx-table-body");
+const composeTrigger = document.querySelector("#compose-trigger");
+const composeOverlay = document.querySelector("#compose-overlay");
+const composeClose = document.querySelector("#compose-close");
+const composeCancel = document.querySelector("#compose-cancel");
+const composeForm = document.querySelector("#compose-form");
+const composeFeedback = document.querySelector("#compose-feedback");
+const composeSubmit = document.querySelector("#compose-submit");
+const senderInput = document.querySelector("#tx-sender");
+const recipientInput = document.querySelector("#tx-recipient");
+const valueInput = document.querySelector("#tx-value");
 
 const TEXT = {
   loading: "正在加载交易信息...",
@@ -114,6 +124,29 @@ function renderStat(stat) {
   statUsers.textContent = formatNumber(stat.userCount);
 }
 
+function openComposeModal() {
+  composeFeedback.textContent = "";
+  composeFeedback.className = "compose-feedback hidden";
+  composeForm.reset();
+  composeOverlay.classList.remove("hidden");
+  composeOverlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  setTimeout(() => senderInput.focus(), 0);
+}
+
+function closeComposeModal() {
+  composeOverlay.classList.add("hidden");
+  composeOverlay.setAttribute("aria-hidden", "true");
+  if (modalOverlay.classList.contains("hidden")) {
+    document.body.classList.remove("modal-open");
+  }
+}
+
+function setComposeFeedback(message, type) {
+  composeFeedback.textContent = message;
+  composeFeedback.className = `compose-feedback ${type}`;
+}
+
 function closeModal() {
   modalOverlay.classList.add("hidden");
   modalOverlay.setAttribute("aria-hidden", "true");
@@ -172,6 +205,42 @@ async function loadTransactions(shardID, hash) {
     txEmpty.classList.remove("hidden");
     txTableWrap.classList.add("hidden");
     txTableBody.innerHTML = "";
+  }
+}
+
+async function submitTransaction(event) {
+  event.preventDefault();
+
+  const payload = {
+    sender: senderInput.value.trim(),
+    recipient: recipientInput.value.trim(),
+    value: valueInput.value.trim(),
+  };
+
+  if (!payload.sender || !payload.recipient || !payload.value) {
+    setComposeFeedback("请完整填写发送方、接收方和转账金额。", "error");
+    return;
+  }
+
+  composeSubmit.disabled = true;
+  setComposeFeedback("正在写入 Transactions.csv ...", "pending");
+
+  try {
+    const response = await fetch("/api/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "写入失败");
+    }
+    setComposeFeedback(`写入成功，时间戳 ${data.timestamp}。`, "success");
+    setTimeout(() => closeComposeModal(), 900);
+  } catch (error) {
+    setComposeFeedback(error.message || "交易写入失败。", "error");
+  } finally {
+    composeSubmit.disabled = false;
   }
 }
 
@@ -300,10 +369,22 @@ modalOverlay.addEventListener("click", (event) => {
     closeModal();
   }
 });
+composeTrigger.addEventListener("click", openComposeModal);
+composeClose.addEventListener("click", closeComposeModal);
+composeCancel.addEventListener("click", closeComposeModal);
+composeOverlay.addEventListener("click", (event) => {
+  if (event.target === composeOverlay) {
+    closeComposeModal();
+  }
+});
+composeForm.addEventListener("submit", submitTransaction);
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !modalOverlay.classList.contains("hidden")) {
     closeModal();
+  }
+  if (event.key === "Escape" && !composeOverlay.classList.contains("hidden")) {
+    closeComposeModal();
   }
 });
 

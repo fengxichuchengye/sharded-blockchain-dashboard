@@ -1,0 +1,110 @@
+<svg width="440" height="264" viewBox="0 0 440 264" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="440" height="264" rx="20" fill="#F5F8FC"/>
+  <g stroke-width="2">
+    <g stroke="#35E85C">
+      <path d="M46 28H86V86H46V28Z"/>
+      <path d="M46 28L66 12H106V70L86 86"/>
+      <path d="M86 28L106 12"/>
+      <path d="M86 86V28H106V70"/>
+      <path d="M126 28H166V86H126V28Z"/>
+      <path d="M126 28L146 12H186V70L166 86"/>
+      <path d="M166 28L186 12"/>
+      <path d="M166 86V28H186V70"/>
+      <path d="M206 28H246V86H206V28Z"/>
+      <path d="M206 28L226 12H266V70L246 86"/>
+      <path d="M246 28L266 12"/>
+      <path d="M246 86V28H266V70"/>
+      <path d="M286 28H326V86H286V28Z"/>
+      <path d="M286 28L306 12H346V70L326 86"/>
+      <path d="M326 28L346 12"/>
+      <path d="M326 86V28H346V70"/>
+    </g>
+    <g stroke="#2E86FF">
+      <path d="M86 120H126V178H86V120Z"/>
+      <path d="M86 120L106 104H146V162L126 178"/>
+      <path d="M126 120L146 104"/>
+      <path d="M126 178V120H146V162"/>
+      <path d="M166 120H206V178H166V120Z"/>
+      <path d="M166 120L186 104H226V162L206 178"/>
+      <path d="M206 120L226 104"/>
+      <path d="M206 178V120H226V162"/>
+      <path d="M246 120H286V178H246V120Z"/>
+      <path d="M246 120L266 104H306V162L286 178"/>
+      <path d="M286 120L306 104"/>
+      <path d="M286 178V120H306V162"/>
+      <path d="M326 120H366V178H326V120Z"/>
+      <path d="M326 120L346 104H386V162L366 178"/>
+      <path d="M366 120L386 104"/>
+      <path d="M366 178V120H386V162"/>
+    </g>
+    <g stroke="#FF3B3B">
+      <path d="M10 192H50V250H10V192Z"/>
+      <path d="M10 192L30 176H70V234L50 250"/>
+      <path d="M50 192L70 176"/>
+      <path d="M50 250V192H70V234"/>
+      <path d="M90 192H130V250H90V192Z"/>
+      <path d="M90 192L110 176H150V234L130 250"/>
+      <path d="M130 192L150 176"/>
+      <path d="M130 250V192H150V234"/>
+      <path d="M170 192H210V250H170V192Z"/>
+      <path d="M170 192L190 176H230V234L210 250"/>
+      <path d="M210 192L230 176"/>
+      <path d="M210 250V192H230V234"/>
+      <path d="M250 192H290V250H250V192Z"/>
+      <path d="M250 192L270 176H310V234L290 250"/>
+      <path d="M290 192L310 176"/>
+      <path d="M290 250V192H310V234"/>
+    </g>
+  </g>
+
+  <g font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="14" fill="#1C2430">
+    <text x="52" y="63">区块1</text>
+    <text x="132" y="63">区块2</text>
+    <text x="212" y="63">区块3</text>
+    <text x="292" y="63">区块4</text>
+    <text x="92" y="155">区块1</text>
+    <text x="172" y="155">区块2</text>
+    <text x="252" y="155">区块3</text>
+    <text x="332" y="155">区块4</text>
+    <text x="16" y="227">区块1</text>
+    <text x="96" y="227">区块2</text>
+    <text x="176" y="227">区块3</text>
+    <text x="256" y="227">区块4</text>
+    <text x="356" y="67" font-size="16">分片1</text>
+    <text x="376" y="159" font-size="16">分片2</text>
+    <text x="316" y="227" font-size="16">分片3</text>
+  </g>
+
+  <g stroke-width="2.2" stroke-linecap="round" stroke-dasharray="5 5">
+    <path d="M147 86L104 120" stroke="#2E86FF"/>
+    <path d="M227 86L184 120" stroke="#2E86FF"/>
+    <path d="M307 86L264 120" stroke="#2E86FF"/>
+    <path d="M67 192L67 92" stroke="#FF3B3B"/>
+    <path d="M147 192L147 92" stroke="#FF3B3B"/>
+    <path d="M227 192L227 92" stroke="#FF3B3B"/>
+    <path d="M307 192L307 92" stroke="#FF3B3B"/>
+  </g>
+
+  <g fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M121 51H90" stroke="#35E85C"/>
+    <path d="M97 45L90 51L97 57" stroke="#35E85C"/>
+    <path d="M201 51H170" stroke="#35E85C"/>
+    <path d="M177 45L170 51L177 57" stroke="#35E85C"/>
+    <path d="M281 51H250" stroke="#35E85C"/>
+    <path d="M257 45L250 51L257 57" stroke="#35E85C"/>
+
+    <path d="M159 149H128" stroke="#2E86FF"/>
+    <path d="M135 143L128 149L135 155" stroke="#2E86FF"/>
+    <path d="M239 149H208" stroke="#2E86FF"/>
+    <path d="M215 143L208 149L215 155" stroke="#2E86FF"/>
+    <path d="M319 149H288" stroke="#2E86FF"/>
+    <path d="M295 143L288 149L295 155" stroke="#2E86FF"/>
+
+    <path d="M84 221H53" stroke="#FF3B3B"/>
+    <path d="M60 215L53 221L60 227" stroke="#FF3B3B"/>
+    <path d="M164 221H133" stroke="#FF3B3B"/>
+    <path d="M140 215L133 221L140 227" stroke="#FF3B3B"/>
+    <path d="M244 221H213" stroke="#FF3B3B"/>
+    <path d="M220 215L213 221L220 227" stroke="#FF3B3B"/>
+  </g>
+</svg>

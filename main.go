@@ -4,7 +4,9 @@ import (
 	"block/core"
 	"block/query"
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/csv"
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
@@ -24,8 +26,29 @@ import (
 )
 
 const recordDir = "record"
+const transactionCSVPath = "Transactions.csv"
 
 var accountAddrPattern = regexp.MustCompile(`[0-9a-f]{20,64}`)
+var transactionCSVHeaders = []string{
+	"blockNumber",
+	"timestamp",
+	"transactionHash",
+	"from",
+	"to",
+	"toCreate",
+	"fromIsContract",
+	"toIsContract",
+	"value",
+	"gasLimit",
+	"gasPrice",
+	"gasUsed",
+	"callingFunction",
+	"isError",
+	"eip2718type",
+	"baseFeePerGas",
+	"maxFeePerGas",
+	"maxPriorityFeePerGas",
+}
 
 type liteTx struct {
 	Sender         string
@@ -112,6 +135,12 @@ type Snapshot struct {
 	Shards []ShardView `json:"shards"`
 }
 
+type transactionWriteRequest struct {
+	Sender    string `json:"sender"`
+	Recipient string `json:"recipient"`
+	Value     string `json:"value"`
+}
+
 type indexedBlock struct {
 	View   BlockView
 	Height uint64
@@ -192,6 +221,25 @@ func main() {
 			"transactions": transactions,
 		})
 	})
+	mux.HandleFunc("/api/transactions", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req transactionWriteRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+			return
+		}
+
+		result, err := appendTransactionCSV(transactionCSVPath, req)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		writeJSON(w, result)
+	})
 	serveIndex := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 		w.Header().Set("Pragma", "no-cache")
@@ -235,6 +283,132 @@ func newChainStore(root string) (*chainStore, error) {
 		userCount: userCount,
 		shards:    shards,
 	}, nil
+}
+
+func appendTransactionCSV(path string, req transactionWriteRequest) (map[string]any, error) {
+	sender := strings.TrimSpace(req.Sender)
+	recipient := strings.TrimSpace(req.Recipient)
+	value := strings.TrimSpace(req.Value)
+	if sender == "" || recipient == "" || value == "" {
+		return nil, fmt.Errorf("sender, recipient and value are required")
+	}
+	if _, ok := new(big.Int).SetString(value, 10); !ok {
+		return nil, fmt.Errorf("value must be a valid integer amount")
+	}
+
+	headers, err := ensureTransactionCSV(path)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().Unix()
+	txHash := buildTransactionHash(sender, recipient, value, now)
+	record := make([]string, len(headers))
+	values := map[string]string{
+		"blockNumber":         "",
+		"timestamp":           strconv.FormatInt(now, 10),
+		"transactionHash":     txHash,
+		"from":                ensureHexPrefix(sender),
+		"to":                  ensureHexPrefix(recipient),
+		"toCreate":            "",
+		"fromIsContract":      "0",
+		"toIsContract":        "0",
+		"value":               value,
+		"gasLimit":            "",
+		"gasPrice":            "",
+		"gasUsed":             "",
+		"callingFunction":     "0x",
+		"isError":             "",
+		"eip2718type":         "",
+		"baseFeePerGas":       "",
+		"maxFeePerGas":        "",
+		"maxPriorityFeePerGas": "",
+	}
+	for i, header := range headers {
+		record[i] = values[header]
+	}
+
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	if err := writer.Write(record); err != nil {
+		return nil, err
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"ok":        true,
+		"timestamp": now,
+		"txHash":    txHash,
+	}, nil
+}
+
+func ensureTransactionCSV(path string) ([]string, error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		file, createErr := os.Create(path)
+		if createErr != nil {
+			return nil, createErr
+		}
+		writer := csv.NewWriter(file)
+		if err := writer.Write(transactionCSVHeaders); err != nil {
+			file.Close()
+			return nil, err
+		}
+		writer.Flush()
+		closeErr := file.Close()
+		if err := writer.Error(); err != nil {
+			return nil, err
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		return transactionCSVHeaders, nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	headers, err := reader.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(headers) != len(transactionCSVHeaders) {
+		return nil, fmt.Errorf("Transactions.csv header does not match expected schema")
+	}
+	for i := range transactionCSVHeaders {
+		if headers[i] != transactionCSVHeaders[i] {
+			return nil, fmt.Errorf("Transactions.csv header does not match expected schema")
+		}
+	}
+
+	return headers, nil
+}
+
+func buildTransactionHash(sender, recipient, value string, ts int64) string {
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%s|%d", sender, recipient, value, ts)))
+	return "0x" + hex.EncodeToString(sum[:])
+}
+
+func ensureHexPrefix(value string) string {
+	if value == "" {
+		return ""
+	}
+	if strings.HasPrefix(value, "0x") || strings.HasPrefix(value, "0X") {
+		return value
+	}
+	return "0x" + value
 }
 
 func serverAddr() string {

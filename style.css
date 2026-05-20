@@ -77,6 +77,35 @@ body.modal-open {
   font-size: clamp(24px, 3vw, 34px);
 }
 
+.action-button,
+.primary-button,
+.secondary-button {
+  border-radius: 999px;
+  padding: 12px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.action-button,
+.primary-button {
+  border: 1px solid rgba(105, 229, 255, 0.35);
+  background: linear-gradient(135deg, rgba(105, 229, 255, 0.2), rgba(80, 255, 177, 0.2));
+  color: var(--text);
+}
+
+.secondary-button {
+  border: 1px solid var(--line);
+  background: rgba(9, 19, 34, 0.84);
+  color: var(--text);
+}
+
+.action-button:hover,
+.primary-button:hover,
+.secondary-button:hover {
+  transform: translateY(-1px);
+}
+
 .subtitle {
   max-width: 780px;
   color: var(--muted);
@@ -326,6 +355,115 @@ body.modal-open {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
 }
 
+.compose-modal {
+  position: relative;
+  width: min(1160px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  border-radius: 34px;
+  padding: 32px;
+  background:
+    radial-gradient(circle at top right, rgba(80, 255, 177, 0.16), transparent 24%),
+    radial-gradient(circle at 20% 0%, rgba(105, 229, 255, 0.2), transparent 28%),
+    linear-gradient(135deg, rgba(8, 18, 31, 0.98), rgba(5, 13, 23, 0.98));
+  border: 0;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.46);
+}
+
+.compose-modal::before {
+  content: none;
+}
+
+.compose-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.1fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+.compose-side {
+  position: relative;
+  padding: 30px;
+  border-radius: 28px;
+  border: 1px solid rgba(105, 229, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(10, 22, 40, 0.88), rgba(8, 17, 30, 0.76));
+  overflow: hidden;
+}
+
+.compose-side::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(140deg, rgba(105, 229, 255, 0.06), transparent 44%),
+    radial-gradient(circle at 82% 18%, rgba(80, 255, 177, 0.12), transparent 22%);
+  pointer-events: none;
+}
+
+.compose-side .eyebrow {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #8ef0ff;
+}
+
+.compose-side h2 {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: clamp(42px, 5vw, 64px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.compose-copy {
+  position: relative;
+  z-index: 1;
+  margin: 18px 0 0;
+  color: #9bb7d5;
+  font-size: 18px;
+  line-height: 1.8;
+  max-width: 420px;
+}
+
+.compose-copy strong {
+  color: var(--text);
+}
+
+.compose-graphic {
+  position: relative;
+  z-index: 1;
+  height: 220px;
+  margin: 34px 0 26px;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compose-graphic::before {
+  content: none;
+}
+
+.compose-graphic img {
+  position: relative;
+  z-index: 1;
+  width: calc(100% - 24px);
+  max-width: 100%;
+  height: auto;
+}
+
+.compose-modal .modal-close:hover {
+  border-color: rgba(105, 229, 255, 0.55);
+  background: rgba(15, 30, 52, 0.96);
+  box-shadow: 0 0 0 1px rgba(105, 229, 255, 0.18);
+}
+
 .modal-close {
   position: absolute;
   top: 18px;
@@ -462,6 +600,180 @@ body.modal-open {
   background: rgba(105, 229, 255, 0.06);
 }
 
+.compose-form {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.compose-form-frame {
+  padding: 28px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(10, 22, 40, 0.96), rgba(7, 17, 31, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.compose-frame-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.compose-frame-label {
+  color: #9fefff;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.compose-frame-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(105, 229, 255, 0.42), rgba(105, 229, 255, 0.04));
+}
+
+.form-field {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(7, 17, 31, 0.9), rgba(6, 15, 27, 0.94));
+  border: 1px solid rgba(125, 196, 255, 0.12);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.form-field:focus-within {
+  border-color: rgba(105, 229, 255, 0.32);
+  background: rgba(8, 19, 34, 0.74);
+  transform: translateY(-1px);
+}
+
+.form-field span {
+  color: var(--muted);
+  font-size: 16px;
+  letter-spacing: 0.03em;
+}
+
+.form-field input {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 196, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(5, 13, 24, 0.95), rgba(8, 17, 30, 0.98));
+  color: var(--text);
+  padding: 18px 20px;
+  font-size: 17px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.form-field input::placeholder {
+  color: rgba(138, 167, 199, 0.7);
+}
+
+.form-field input:focus {
+  border-color: rgba(105, 229, 255, 0.6);
+  box-shadow:
+    0 0 0 1px rgba(105, 229, 255, 0.22),
+    0 0 24px rgba(105, 229, 255, 0.08);
+  background: linear-gradient(180deg, rgba(7, 17, 29, 0.98), rgba(9, 19, 34, 0.98));
+}
+
+.compose-form .form-field:nth-of-type(1) input,
+.compose-form .form-field:nth-of-type(2) input {
+  font-family: "Consolas", "Cascadia Code", "Fira Code", monospace;
+  letter-spacing: 0.01em;
+}
+
+.compose-form .form-field:nth-of-type(3) input {
+  font-size: 24px;
+  font-weight: 600;
+  color: #f4fbff;
+}
+
+.compose-feedback {
+  border-radius: 20px;
+  padding: 16px 18px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.compose-feedback.pending {
+  display: block;
+  background: rgba(105, 229, 255, 0.08);
+  border: 1px solid rgba(105, 229, 255, 0.18);
+  color: var(--accent);
+}
+
+.compose-feedback.success {
+  display: block;
+  background: rgba(80, 255, 177, 0.08);
+  border: 1px solid rgba(80, 255, 177, 0.18);
+  color: var(--accent-2);
+}
+
+.compose-feedback.error {
+  display: block;
+  background: rgba(255, 120, 120, 0.08);
+  border: 1px solid rgba(255, 120, 120, 0.18);
+  color: #ffb5b5;
+}
+
+.compose-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.compose-actions .secondary-button,
+.compose-actions .primary-button {
+  min-width: 156px;
+  padding: 16px 28px;
+  font-weight: 600;
+  font-size: 16px;
+  border-radius: 20px;
+}
+
+.compose-actions .primary-button {
+  box-shadow: 0 14px 32px rgba(49, 196, 211, 0.16);
+}
+
+.compose-actions .primary-button:hover {
+  border-color: rgba(105, 229, 255, 0.52);
+  box-shadow: 0 14px 28px rgba(49, 196, 211, 0.18);
+}
+
+.compose-actions .secondary-button:hover {
+  border-color: rgba(125, 196, 255, 0.34);
+  background: rgba(12, 24, 43, 0.95);
+}
+
+.compose-cta {
+  position: relative;
+  overflow: hidden;
+}
+
+.compose-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.14), transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.45s ease;
+}
+
+.compose-cta:hover::after {
+  transform: translateX(120%);
+}
+
 @media (max-width: 1024px) {
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -475,6 +787,18 @@ body.modal-open {
 
   .modal-meta {
     grid-template-columns: 1fr;
+  }
+
+  .compose-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .compose-side {
+    padding: 24px;
+  }
+
+  .compose-copy {
+    max-width: none;
   }
 }
 
@@ -500,6 +824,37 @@ body.modal-open {
   .block-modal {
     padding: 20px 16px;
     max-height: 92vh;
+  }
+
+  .compose-modal {
+    padding: 20px 16px;
+    max-height: 92vh;
+  }
+
+  .compose-side,
+  .compose-form-frame {
+    padding: 18px;
+  }
+
+  .compose-side h2 {
+    font-size: 40px;
+  }
+
+  .compose-copy {
+    font-size: 15px;
+  }
+
+  .compose-graphic {
+    height: 180px;
+  }
+
+  .compose-actions {
+    flex-direction: column-reverse;
+  }
+
+  .compose-actions .secondary-button,
+  .compose-actions .primary-button {
+    width: 100%;
   }
 
   .tx-table {

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sharded Blockchain Dashboard</title>
+    <title>分片区块链监控平台</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -14,6 +14,7 @@
           <p class="eyebrow">Shard Ledger Observatory</p>
           <h1>分片区块链监控平台</h1>
         </div>
+        <button id="compose-trigger" class="action-button" type="button">发起交易</button>
       </header>
 
       <section class="stats-grid" id="stats-grid">
@@ -75,7 +76,7 @@
           <div class="tx-section-head">
             <div>
               <h3>区块内前 100 笔交易</h3>
-              <p>显示区块体中实际读取到的交易明细，没有交易时显示为空。</p>
+              <p>显示区块体中真实读取到的交易明细，没有交易时显示为空。</p>
             </div>
           </div>
 
@@ -100,6 +101,59 @@
       </section>
     </div>
 
-    <script src="./script.js?v=5"></script>
+    <div id="compose-overlay" class="modal-overlay hidden" aria-hidden="true">
+      <section class="compose-modal compose-shell" role="dialog" aria-modal="true" aria-labelledby="compose-title">
+        <button id="compose-close" class="modal-close" type="button" aria-label="Close compose">
+          &times;
+        </button>
+        <div class="compose-panel">
+          <aside class="compose-side">
+            <p class="eyebrow">NEW TRANSACTION</p>
+            <h2 id="compose-title">发起交易</h2>
+            <p class="compose-copy">
+              创建一笔新的转账请求。
+            </p>
+
+            <div class="compose-graphic" aria-hidden="true">
+              <img src="./compose-graphic.svg" alt="交易分片示意图" />
+            </div>
+
+          </aside>
+
+          <form id="compose-form" class="compose-form">
+            <div class="compose-form-frame">
+              <div class="compose-frame-head">
+                <span class="compose-frame-label">交易录入面板</span>
+                <span class="compose-frame-line"></span>
+              </div>
+
+              <label class="form-field">
+                <span>发送方账户地址</span>
+                <input id="tx-sender" name="sender" type="text" placeholder="请输入自己的账户地址" required />
+              </label>
+
+              <label class="form-field">
+                <span>接收方账户地址</span>
+                <input id="tx-recipient" name="recipient" type="text" placeholder="请输入接收方账户地址" required />
+              </label>
+
+              <label class="form-field">
+                <span>转账金额</span>
+                <input id="tx-value" name="value" type="text" inputmode="decimal" placeholder="请输入转账金额" required />
+              </label>
+            </div>
+
+            <div id="compose-feedback" class="compose-feedback hidden"></div>
+
+            <div class="compose-actions">
+              <button class="secondary-button" id="compose-cancel" type="button">取消</button>
+              <button class="primary-button compose-cta" id="compose-submit" type="submit">写入交易</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <script src="./script.js?v=6"></script>
   </body>
 </html>
