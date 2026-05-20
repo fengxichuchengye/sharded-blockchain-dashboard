@@ -3,3 +3,4 @@ blockviz.exe
 server.log
 record/
 .gocache/
+Transactions.csv
